@@ -1,5 +1,6 @@
 # Reusable workflow for Rust CI
 # Use for: syster, syster-cli, syster-base, syster-lsp
+# Optimized with Swatinem/rust-cache for fast builds
 
 name: Rust CI
 
@@ -17,6 +18,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
 
 jobs:
@@ -31,16 +33,10 @@ jobs:
         with:
           components: clippy, rustfmt
       
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          workspaces: ${{ inputs.working-directory }}
       
       - name: Run guidelines
         working-directory: ${{ inputs.working-directory }}
@@ -51,6 +47,7 @@ jobs:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -69,6 +66,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ inputs.working-directory }}
+          shared-key: build-${{ matrix.target }}
       
       - name: Build
         working-directory: ${{ inputs.working-directory }}
