@@ -112,7 +112,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       
       - name: Login to crates.io
-        if: ${{ secrets.CRATES_IO_TOKEN != '' }}
         working-directory: ${{ inputs.working-directory }}
         env:
           CARGO_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
