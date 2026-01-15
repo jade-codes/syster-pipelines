@@ -11,6 +11,9 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-*'  # Pre-releases like v0.1.0-alpha
 
+permissions:
+  contents: write
+
 jobs:
   rust-release:
     uses: jade-codes/syster-pipelines/.github/workflows/rust-release.yml@main
