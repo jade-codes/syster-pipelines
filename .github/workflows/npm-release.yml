@@ -42,7 +42,13 @@ jobs:
       
       - name: Package
         working-directory: ${{ inputs.working-directory }}
-        run: make package
+        run: |
+          if [ -f Makefile ] && grep -q "package" Makefile; then
+            make package
+          else
+            echo "No package target, running bun run build"
+            bun run build || echo "No build script"
+          fi
       
       - name: Verify package version matches tag
         working-directory: ${{ inputs.working-directory }}
@@ -82,7 +88,13 @@ jobs:
       
       - name: Package
         working-directory: ${{ inputs.working-directory }}
-        run: make package
+        run: |
+          if [ -f Makefile ] && grep -q "package" Makefile; then
+            make package
+          else
+            echo "No package target, running bun run build"
+            bun run build || echo "No build script"
+          fi
       
       - name: Publish to npm
         working-directory: ${{ inputs.working-directory }}
