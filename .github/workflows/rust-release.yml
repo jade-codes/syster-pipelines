@@ -114,7 +114,9 @@ jobs:
       - name: Login to crates.io
         if: ${{ secrets.CRATES_IO_TOKEN != '' }}
         working-directory: ${{ inputs.working-directory }}
-        run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo login
       
       - name: Publish crates in order
         working-directory: ${{ inputs.working-directory }}
