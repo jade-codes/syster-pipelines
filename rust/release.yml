@@ -35,14 +35,8 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-action@stable
       
-      - name: Verify all tests pass
-        run: cargo test --all-targets
-      
-      - name: Verify crates can be packaged
-        run: |
-          cargo package --package syster-base --allow-dirty
-          cargo package --package syster-cli --allow-dirty
-          cargo package --package syster-lsp --allow-dirty
+      - name: Package
+        run: make package
 
   # Build release binaries for all platforms
   build:
@@ -80,27 +74,8 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
       
-      - name: Build release binaries
-        run: cargo build --release --target ${{ matrix.target }}
-      
-      - name: Create archive (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          mkdir -p dist
-          cp target/${{ matrix.target }}/release/syster-cli dist/syster 2>/dev/null || true
-          cp target/${{ matrix.target }}/release/syster-lsp dist/ 2>/dev/null || true
-          cp README.md LICENSE* dist/ 2>/dev/null || true
-          cd dist && tar -czvf ../${{ matrix.artifact }}.tar.gz *
-      
-      - name: Create archive (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist
-          Copy-Item target/${{ matrix.target }}/release/syster-cli.exe dist/syster.exe -ErrorAction SilentlyContinue
-          Copy-Item target/${{ matrix.target }}/release/syster-lsp.exe dist/ -ErrorAction SilentlyContinue
-          Copy-Item README.md,LICENSE* dist/ -ErrorAction SilentlyContinue
-          Compress-Archive -Path dist/* -DestinationPath ${{ matrix.artifact }}.zip
+      - name: Package
+        run: make package TARGET=${{ matrix.target }} ARTIFACT=${{ matrix.artifact }}
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
