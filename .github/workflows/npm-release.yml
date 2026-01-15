@@ -65,7 +65,6 @@ jobs:
     name: Publish to npm
     needs: validate
     runs-on: ubuntu-latest
-    if: ${{ secrets.NPM_TOKEN != '' }}
     permissions:
       contents: read
       id-token: write  # For npm provenance
@@ -100,12 +99,14 @@ jobs:
       - name: Publish to npm
         working-directory: ${{ inputs.working-directory }}
         run: npm publish --provenance --access public
+        continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   github-release:
     name: Create GitHub Release
-    needs: validate
+    needs: [validate, publish-npm]
+    if: always()
     runs-on: ubuntu-latest
     permissions:
       contents: write
