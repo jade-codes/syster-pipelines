@@ -1,37 +1,29 @@
-# Example caller workflow for VS Code Extension releases
-# This file shows how to use the reusable VS Code release workflow
-#
-# Place this file at: .github/workflows/release.yml
+# Reusable workflow for VS Code Extension releases
 
-name: Release
+name: VS Code Extension Release
 
 on:
-  push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-*'
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      version:
-        description: 'Version to release (e.g., 1.0.0)'
-        required: true
+      working-directory:
+        description: 'Working directory for the extension'
         type: string
-
-jobs:
-  vscode-release:
-    uses: jade-codes/syster-pipelines/.github/workflows/vscode-release.yml@main
-    # with:
-    #   working-directory: '.'  # Optional: if not in repo root
-    #   node-version: '20'      # Optional: default is 20
+        default: '.'
+      node-version:
+        description: 'Node.js version to use'
+        type: string
+        default: '20'
     secrets:
-      VSCE_PAT: ${{ secrets.VSCE_PAT }}
-      OVSX_PAT: ${{ secrets.OVSX_PAT }}  # Optional
+      VSCE_PAT:
+        description: 'Personal Access Token for VS Code Marketplace'
+        required: true
+      OVSX_PAT:
+        description: 'Access token for Open VSX Registry'
+        required: false
 
-# --- LEGACY TEMPLATE BELOW (for reference only) ---
-# The code below is the old template that has been replaced by the reusable workflow above.
-# You can delete everything below this line once you've migrated.
-
-# OLD TEMPLATE START
+permissions:
+  contents: write
+  id-token: write
 
 jobs:
   validate:
@@ -39,6 +31,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
+      extension-name: ${{ steps.extension.outputs.name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -59,7 +52,15 @@ jobs:
             echo "prerelease=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Extract extension name
+        id: extension
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+
       - name: Validate package.json version
+        working-directory: ${{ inputs.working-directory }}
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
           if [ "$PKG_VERSION" != "${{ steps.version.outputs.version }}" ]; then
@@ -76,20 +77,23 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ inputs.node-version }}
           cache: 'npm'
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
 
       - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
         run: npm ci
 
       - name: Package
+        working-directory: ${{ inputs.working-directory }}
         run: make package PRERELEASE=${{ needs.validate.outputs.prerelease }}
 
       - name: Upload VSIX
         uses: actions/upload-artifact@v4
         with:
           name: vsix-package
-          path: '*.vsix'
+          path: '${{ inputs.working-directory }}/*.vsix'
           retention-days: 30
 
   publish-vscode-marketplace:
@@ -102,13 +106,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ inputs.node-version }}
           cache: 'npm'
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
 
       - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
         run: npm ci
 
       - name: Publish to VS Code Marketplace
+        working-directory: ${{ inputs.working-directory }}
         run: |
           if [ "${{ needs.validate.outputs.prerelease }}" = "true" ]; then
             npx @vscode/vsce publish --no-dependencies --pre-release
@@ -122,6 +129,7 @@ jobs:
     needs: [validate, build]
     runs-on: ubuntu-latest
     environment: release
+    if: ${{ secrets.OVSX_PAT != '' }}
     steps:
       - name: Download VSIX
         uses: actions/download-artifact@v4
@@ -131,7 +139,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ inputs.node-version }}
 
       - name: Publish to Open VSX
         run: |
@@ -158,6 +166,7 @@ jobs:
 
       - name: Generate changelog
         id: changelog
+        working-directory: ${{ inputs.working-directory }}
         run: |
           # Extract changelog for this version if CHANGELOG.md exists
           if [ -f CHANGELOG.md ]; then
@@ -186,7 +195,7 @@ jobs:
             
             **VS Code Marketplace:**
             ```
-            ext install jade-codes.${{ env.EXTENSION_NAME }}
+            ext install jade-codes.${{ needs.validate.outputs.extension-name }}
             ```
             
             **Manual Installation:**

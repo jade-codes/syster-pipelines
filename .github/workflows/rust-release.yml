@@ -1,32 +1,27 @@
-# Example caller workflow for Rust releases
-# This file shows how to use the reusable Rust release workflow
-#
-# Place this file at: .github/workflows/release.yml
+# Reusable workflow for Rust releases
+# Publishes to crates.io on version tags
 
-name: Release
+name: Rust Release
 
 on:
-  push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-*'  # Pre-releases like v0.1.0-alpha
-
-jobs:
-  rust-release:
-    uses: jade-codes/syster-pipelines/.github/workflows/rust-release.yml@main
-    with:
-      # For repos with multiple crates, specify publish order:
-      crates: 'syster-base,syster-cli,syster-lsp'
-      # For single crate repos, omit the crates parameter
-      # working-directory: '.'  # Optional: if not in repo root
+  workflow_call:
+    inputs:
+      working-directory:
+        description: 'Working directory for the build'
+        type: string
+        default: '.'
+      crates:
+        description: 'Comma-separated list of crates to publish in order (e.g., "syster-base,syster-cli,syster-lsp")'
+        type: string
+        required: false
+      skip-crates-publish:
+        description: 'Skip publishing to crates.io'
+        type: boolean
+        default: false
     secrets:
-      CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-
-# --- LEGACY TEMPLATE BELOW (for reference only) ---
-# The code below is the old template that has been replaced by the reusable workflow above.
-# You can delete everything below this line once you've migrated.
-
-# OLD TEMPLATE START
+      CRATES_IO_TOKEN:
+        description: 'Token for publishing to crates.io'
+        required: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -52,6 +47,7 @@ jobs:
         uses: dtolnay/rust-action@stable
       
       - name: Package
+        working-directory: ${{ inputs.working-directory }}
         run: make package
 
   # Build release binaries for all platforms
@@ -91,6 +87,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y musl-tools
       
       - name: Package
+        working-directory: ${{ inputs.working-directory }}
         run: make package TARGET=${{ matrix.target }} ARTIFACT=${{ matrix.artifact }}
       
       - name: Upload artifacts
@@ -98,8 +95,8 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: |
-            ${{ matrix.artifact }}.tar.gz
-            ${{ matrix.artifact }}.zip
+            ${{ inputs.working-directory }}/${{ matrix.artifact }}.tar.gz
+            ${{ inputs.working-directory }}/${{ matrix.artifact }}.zip
           if-no-files-found: ignore
 
   # Publish to crates.io
@@ -107,6 +104,7 @@ jobs:
     name: Publish to crates.io
     needs: [validate, build]
     runs-on: ubuntu-latest
+    if: ${{ !inputs.skip-crates-publish }}
     steps:
       - uses: actions/checkout@v4
       
@@ -114,26 +112,23 @@ jobs:
         uses: dtolnay/rust-action@stable
       
       - name: Login to crates.io
+        working-directory: ${{ inputs.working-directory }}
         run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
       
-      # Publish in dependency order
-      - name: Publish syster-base
-        run: cargo publish --package syster-base
-        continue-on-error: true  # May already be published
-      
-      - name: Wait for crates.io to update
-        run: sleep 30
-      
-      - name: Publish syster-cli
-        run: cargo publish --package syster-cli
-        continue-on-error: true
-      
-      - name: Wait for crates.io to update
-        run: sleep 30
-      
-      - name: Publish syster-lsp
-        run: cargo publish --package syster-lsp
-        continue-on-error: true
+      - name: Publish crates in order
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          if [ -n "${{ inputs.crates }}" ]; then
+            IFS=',' read -ra CRATES <<< "${{ inputs.crates }}"
+            for crate in "${CRATES[@]}"; do
+              echo "Publishing $crate..."
+              cargo publish --package "$crate" || true
+              echo "Waiting for crates.io to update..."
+              sleep 30
+            done
+          else
+            echo "No crates specified, skipping publish"
+          fi
 
   # Create GitHub release with binaries
   github-release:

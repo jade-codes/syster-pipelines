@@ -1,19 +1,119 @@
 # Syster CI/CD Pipeline Templates
 
-This directory contains GitHub Actions workflow templates for all syster repositories. Copy the appropriate workflows to each repository's `.github/workflows/` directory.
+This repository contains **reusable GitHub Actions workflows** for all syster repositories. Instead of copying workflow files, repositories reference these workflows directly, ensuring consistency and easy updates.
 
-## Repository Mapping
+## 🚀 Quick Start
 
-| Repository | Type | Workflows to Use |
-|------------|------|------------------|
-| `syster` | Rust Workspace | `rust/ci.yml`, `rust/release.yml` |
-| `syster-base` | Rust Crate | `rust/ci.yml`, `rust/release.yml` |
-| `syster-cli` | Rust Binary | `rust/ci.yml`, `rust/release.yml` |
-| `syster-lsp` | Rust + VS Code | `rust/ci.yml`, `rust/release.yml`, `vscode/ci.yml`, `vscode/release.yml` |
-| `syster-diagram-core` | npm Package | `npm/ci.yml`, `npm/release.yml` |
-| `syster-diagram-ui` | npm Package | `npm/ci.yml`, `npm/release.yml` |
-| `syster-viewer` | VS Code Extension | `vscode/ci.yml`, `vscode/release.yml` |
-| `syster-modeller` | VS Code Extension | `vscode/ci.yml`, `vscode/release.yml` |
+### 1. Create Workflow Files in Your Repository
+
+Create `.github/workflows/ci.yml` and `.github/workflows/release.yml` in your repository:
+
+**For Rust projects:**
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    uses: jade-codes/syster-pipelines/.github/workflows/rust-ci.yml@main
+```
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+
+jobs:
+  release:
+    uses: jade-codes/syster-pipelines/.github/workflows/rust-release.yml@main
+    with:
+      crates: 'syster-base,syster-cli,syster-lsp'  # Optional: for multi-crate repos
+    secrets:
+      CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+```
+
+**For npm packages:**
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    uses: jade-codes/syster-pipelines/.github/workflows/npm-ci.yml@main
+```
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+
+jobs:
+  release:
+    uses: jade-codes/syster-pipelines/.github/workflows/npm-release.yml@main
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+```
+
+**For VS Code extensions:**
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    uses: jade-codes/syster-pipelines/.github/workflows/vscode-ci.yml@main
+```
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+
+jobs:
+  release:
+    uses: jade-codes/syster-pipelines/.github/workflows/vscode-release.yml@main
+    secrets:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}  # Optional
+```
+
+### 2. Configure Secrets
+
+See [Required Secrets](#required-secrets) section below.
+
+---
+
+## Available Reusable Workflows
+
+| Workflow | Purpose | Repository Types |
+|----------|---------|------------------|
+| `rust-ci.yml` | Rust CI: format, lint, test, build | syster, syster-base, syster-cli, syster-lsp |
+| `rust-release.yml` | Rust release: crates.io + GitHub | syster, syster-base, syster-cli, syster-lsp |
+| `npm-ci.yml` | npm CI: typecheck, lint, test | syster-diagram-core, syster-diagram-ui |
+| `npm-release.yml` | npm release: registry + GitHub | syster-diagram-core, syster-diagram-ui |
+| `vscode-ci.yml` | VS Code CI: compile, test, package | syster-viewer, syster-modeller |
+| `vscode-release.yml` | VS Code release: Marketplace + Open VSX | syster-viewer, syster-modeller |
 
 ---
 
@@ -42,45 +142,110 @@ Each repository needs specific secrets configured in **Settings → Secrets and 
 
 ---
 
-## Setup Instructions
+## Advanced Configuration
 
-### 1. Create GitHub Environment
+### Workflow Inputs
 
-For release workflows, create a `release` environment for added security:
+Each reusable workflow accepts optional inputs for customization:
 
-1. Go to repository **Settings → Environments**
-2. Click **New environment** → Name it `release`
-3. Enable **Required reviewers** (optional but recommended)
-4. Add protection rules as needed
-
-### 2. Copy Workflows
-
-```bash
-# For each repository, copy the appropriate workflows
-mkdir -p .github/workflows
-
-# Example for a Rust crate:
-cp rust/ci.yml your-repo/.github/workflows/ci.yml
-cp rust/release.yml your-repo/.github/workflows/release.yml
-
-# Example for npm package:
-cp npm/ci.yml your-repo/.github/workflows/ci.yml
-cp npm/release.yml your-repo/.github/workflows/release.yml
-
-# Example for VS Code extension:
-cp vscode/ci.yml your-repo/.github/workflows/ci.yml
-cp vscode/release.yml your-repo/.github/workflows/release.yml
+#### `rust-ci.yml`
+```yaml
+with:
+  rust-version: 'stable'      # Rust toolchain version
+  working-directory: '.'       # Working directory
 ```
 
-### 3. Configure Secrets
-
-```bash
-# Using GitHub CLI (gh)
-gh secret set CRATES_IO_TOKEN --repo jade-codes/syster
-gh secret set NPM_TOKEN --repo jade-codes/syster-diagram-core
-gh secret set VSCE_PAT --repo jade-codes/syster-viewer
-gh secret set OVSX_PAT --repo jade-codes/syster-viewer
+#### `rust-release.yml`
+```yaml
+with:
+  working-directory: '.'                    # Working directory
+  crates: 'crate1,crate2,crate3'           # Crates to publish (in order)
+  skip-crates-publish: false                # Skip crates.io publishing
+secrets:
+  CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
 ```
+
+#### `npm-ci.yml`
+```yaml
+with:
+  working-directory: '.'                    # Working directory
+  node-versions: '[18, 20, 22]'            # Node versions to test
+```
+
+#### `npm-release.yml`
+```yaml
+with:
+  working-directory: '.'                    # Working directory
+secrets:
+  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+```
+
+#### `vscode-ci.yml`
+```yaml
+with:
+  working-directory: '.'       # Working directory
+  node-version: '20'          # Node.js version
+```
+
+#### `vscode-release.yml`
+```yaml
+with:
+  working-directory: '.'       # Working directory
+  node-version: '20'          # Node.js version
+secrets:
+  VSCE_PAT: ${{ secrets.VSCE_PAT }}
+  OVSX_PAT: ${{ secrets.OVSX_PAT }}  # Optional
+```
+
+### Example: syster-lsp (Dual Publishing)
+
+For repositories with multiple components (like `syster-lsp` with both Rust LSP and VS Code extension):
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on: [push, pull_request]
+
+jobs:
+  rust-ci:
+    uses: jade-codes/syster-pipelines/.github/workflows/rust-ci.yml@main
+  
+  vscode-ci:
+    uses: jade-codes/syster-pipelines/.github/workflows/vscode-ci.yml@main
+    with:
+      working-directory: 'editors/vscode'
+```
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+
+jobs:
+  rust-release:
+    uses: jade-codes/syster-pipelines/.github/workflows/rust-release.yml@main
+    with:
+      crates: 'syster-lsp'
+    secrets:
+      CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+  
+  vscode-release:
+    needs: rust-release
+    uses: jade-codes/syster-pipelines/.github/workflows/vscode-release.yml@main
+    with:
+      working-directory: 'editors/vscode'
+    secrets:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+```
+
+---
+
+## Legacy Templates
+
+The `rust/`, `npm/`, and `vscode/` directories contain example caller workflows showing how to use the reusable workflows. These replace the old copy-paste templates.
 
 ---
 
@@ -104,6 +269,16 @@ git push origin v1.0.0-beta.1
 2. **Update CHANGELOG.md** (optional but recommended)
 3. **Commit changes**: `git commit -am "Release v1.0.0"`
 4. **Create and push tag**: `git tag v1.0.0 && git push origin v1.0.0`
+
+---
+
+## Benefits of Reusable Workflows
+
+✅ **Single source of truth** - Update all repos by changing one file  
+✅ **Consistency** - All repos use the same tested workflow logic  
+✅ **Easy updates** - No need to sync changes across multiple repos  
+✅ **Version control** - Pin to specific versions with `@v1` or use `@main` for latest  
+✅ **Reduced maintenance** - Fix bugs once, benefit everywhere
 
 ---
 
@@ -151,31 +326,30 @@ git push origin v1.0.0-beta.1
 
 ---
 
-## Customization
+## Migration Guide
 
-### For syster-lsp (Dual Publishing)
+### Migrating from Copied Templates
 
-The `syster-lsp` repository contains both:
-- Rust LSP server (in `crates/`)
-- VS Code extension (in `editors/vscode/`)
+If you're currently using copied workflow files:
 
-You'll need to use **both** Rust and VS Code workflows, with paths adjusted:
+1. **Backup** your current `.github/workflows/` files
+2. **Replace** with the simple caller workflows shown above
+3. **Verify** that inputs/secrets match your needs
+4. **Test** by pushing to a branch and checking the workflow runs
+5. **Delete** old workflow files once verified
 
-```yaml
-# In vscode/ci.yml, change working directory
-defaults:
-  run:
-    working-directory: editors/vscode
-```
+### Testing Changes
 
-### Changing Crate Publishing Order
+Before tagging a release, test the workflows by:
+```bash
+# Trigger CI on a branch
+git push origin feature-branch
 
-In `rust/release.yml`, update the publish job's crate order to match your dependency graph:
+# Check workflow status
+gh run list --repo jade-codes/your-repo
 
-```yaml
-strategy:
-  matrix:
-    crate: [base-crate, dependent-crate, final-crate]
+# View workflow logs
+gh run view <run-id> --repo jade-codes/your-repo
 ```
 
 ---
@@ -202,7 +376,7 @@ strategy:
 
 ---
 
-## File Structure
+## File Structure (Deprecated)
 
 ```
 syster-pipelines/
@@ -223,15 +397,43 @@ syster-pipelines/
 ## Quick Reference
 
 ```bash
-# Check if secrets are set
-gh secret list --repo jade-codes/syster
+# Configure secrets (one-time setup per repo)
+gh secret set CRATES_IO_TOKEN --repo jade-codes/syster
+gh secret set NPM_TOKEN --repo jade-codes/syster-diagram-core
+gh secret set VSCE_PAT --repo jade-codes/syster-viewer
+gh secret set OVSX_PAT --repo jade-codes/syster-viewer
 
-# Manually trigger a release workflow
-gh workflow run release.yml --repo jade-codes/syster
-
-# View workflow runs
+# Check workflow status
 gh run list --repo jade-codes/syster
 
-# Download artifacts from a run
-gh run download <run-id> --repo jade-codes/syster
+# View workflow logs
+gh run view <run-id> --repo jade-codes/syster
+
+# Manually trigger a workflow (if workflow_dispatch is enabled)
+gh workflow run release.yml --repo jade-codes/syster
+```
+
+---
+
+## Repository Structure
+
+```
+syster-pipelines/
+├── .github/workflows/      # Reusable workflows (the actual implementation)
+│   ├── rust-ci.yml
+│   ├── rust-release.yml
+│   ├── npm-ci.yml
+│   ├── npm-release.yml
+│   ├── vscode-ci.yml
+│   └── vscode-release.yml
+├── rust/                   # Example caller workflows
+│   ├── ci.yml
+│   └── release.yml
+├── npm/                    # Example caller workflows
+│   ├── ci.yml
+│   └── release.yml
+├── vscode/                 # Example caller workflows
+│   ├── ci.yml
+│   └── release.yml
+└── README.md              # This file
 ```

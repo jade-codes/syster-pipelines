@@ -1,0 +1,70 @@
+# Reusable workflow for npm/TypeScript CI
+# Use for: syster-diagram-core, syster-diagram-ui
+
+name: npm CI
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: 'Working directory for the build'
+        type: string
+        default: '.'
+      node-versions:
+        description: 'JSON array of Node.js versions to test (e.g., "[18, 20, 22]")'
+        type: string
+        default: '[18, 20, 22]'
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: bun install
+      
+      - name: Run guidelines
+        working-directory: ${{ inputs.working-directory }}
+        run: make run-guidelines
+
+  # Test on multiple Node versions for compatibility
+  node-compat:
+    name: Node.js Compatibility
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ${{ fromJSON(inputs.node-versions) }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      
+      - name: Setup Bun (for build)
+        uses: oven-sh/setup-bun@v1
+      
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: bun install
+      
+      - name: Build
+        working-directory: ${{ inputs.working-directory }}
+        run: bun run build
+      
+      - name: Test with npm
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          cd dist
+          npm pack

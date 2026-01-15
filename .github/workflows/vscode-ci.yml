@@ -1,0 +1,73 @@
+# Reusable workflow for VS Code Extension CI
+
+name: VS Code Extension CI
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: 'Working directory for the extension'
+        type: string
+        default: '.'
+      node-version:
+        description: 'Node.js version to use'
+        type: string
+        default: '20'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: npm ci
+
+      - name: Run guidelines
+        working-directory: ${{ inputs.working-directory }}
+        run: make run-guidelines
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-vsix
+          path: '${{ inputs.working-directory }}/*.vsix'
+          retention-days: 7
+
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: npm ci
+
+      - name: Run tests (Linux)
+        if: runner.os == 'Linux'
+        working-directory: ${{ inputs.working-directory }}
+        run: xvfb-run -a npm test
+
+      - name: Run tests (non-Linux)
+        if: runner.os != 'Linux'
+        working-directory: ${{ inputs.working-directory }}
+        run: npm test
