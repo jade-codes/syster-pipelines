@@ -415,25 +415,57 @@ gh workflow run release.yml --repo jade-codes/syster
 
 ---
 
+## DevContainer Templates
+
+This repository also provides **reusable DevContainer templates** for consistent development environments across all Syster projects.
+
+### Available Templates
+
+- **`rust/`** - For Rust-only projects (syster-lsp, syster-base)
+- **`node/`** - For Node.js/TypeScript projects (syster-diagram-*, syster-vscode-*)
+- **`rust-node-monorepo/`** - For mixed projects (main syster repo)
+
+### Using DevContainer Templates
+
+```bash
+# Apply a template to your project
+./scripts/setup-devcontainer.sh <template-type> <target-repo-path>
+
+# Examples:
+./scripts/setup-devcontainer.sh rust ~/Work/syster-repos/syster-lsp
+./scripts/setup-devcontainer.sh node ~/Work/syster-repos/syster-diagram-core
+```
+
+See [`devcontainer-templates/README.md`](devcontainer-templates/README.md) for detailed documentation.
+
+---
+
 ## Repository Structure
 
 ```
 syster-pipelines/
-├── .github/workflows/      # Reusable workflows (the actual implementation)
+├── .github/workflows/          # Reusable workflows (the actual implementation)
 │   ├── rust-ci.yml
 │   ├── rust-release.yml
 │   ├── npm-ci.yml
 │   ├── npm-release.yml
 │   ├── vscode-ci.yml
 │   └── vscode-release.yml
-├── rust/                   # Example caller workflows
+├── devcontainer-templates/     # Reusable DevContainer templates
+│   ├── rust/                   # Rust-only template
+│   ├── node/                   # Node.js template
+│   ├── rust-node-monorepo/     # Mixed Rust+Node template
+│   └── README.md               # DevContainer documentation
+├── scripts/                    # Utility scripts
+│   └── setup-devcontainer.sh   # Apply templates to repos
+├── rust/                       # Example caller workflows
 │   ├── ci.yml
 │   └── release.yml
-├── npm/                    # Example caller workflows
+├── npm/                        # Example caller workflows
 │   ├── ci.yml
 │   └── release.yml
-├── vscode/                 # Example caller workflows
+├── vscode/                     # Example caller workflows
 │   ├── ci.yml
 │   └── release.yml
-└── README.md              # This file
+└── README.md                   # This file
 ```
