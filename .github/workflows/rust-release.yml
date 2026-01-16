@@ -126,7 +126,15 @@ jobs:
             IFS=',' read -ra CRATES <<< "${{ inputs.crates }}"
             for crate in "${CRATES[@]}"; do
               echo "Publishing $crate..."
-              cargo publish --package "$crate" || true
+              output=$(cargo publish --package "$crate" 2>&1) || {
+                echo "$output"
+                if echo "$output" | grep -q "error.*400\|status.*400\|400.*Bad Request"; then
+                  echo "ERROR: Received 400 Bad Request from crates.io"
+                  exit 1
+                fi
+                exit 1
+              }
+              echo "$output"
               echo "Waiting for crates.io to update..."
               sleep 30
             done
