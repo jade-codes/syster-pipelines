@@ -98,6 +98,15 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     steps:
+      - name: Validate OVSX_PAT is set
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "::error::OVSX_PAT secret is not set. Cannot publish to Open VSX."
+            exit 1
+          fi
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
       - name: Download VSIX
         uses: actions/download-artifact@v4
         with:
