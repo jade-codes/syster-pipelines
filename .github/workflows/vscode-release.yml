@@ -17,9 +17,6 @@ on:
       VSCE_PAT:
         description: 'Personal Access Token for VS Code Marketplace'
         required: true
-      OVSX_PAT:
-        description: 'Access token for Open VSX Registry'
-        required: false
 
 permissions:
   contents: write
@@ -124,46 +121,6 @@ jobs:
           fi
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-
-  publish-open-vsx:
-    needs: [validate, build]
-    runs-on: ubuntu-latest
-    environment: release
-    if: ${{ inputs.working-directory != '__skip_ovsx__' }}
-    steps:
-      - name: Check OVSX_PAT
-        id: check-pat
-        run: |
-          if [ -z "${{ secrets.OVSX_PAT }}" ]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Download VSIX
-        if: steps.check-pat.outputs.skip != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: vsix-package
-
-      - name: Setup Node.js
-        if: steps.check-pat.outputs.skip != 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-
-      - name: Publish to Open VSX
-        if: steps.check-pat.outputs.skip != 'true'
-        run: |
-          npm install -g ovsx
-          VSIX_FILE=$(ls *.vsix | head -1)
-          if [ "${{ needs.validate.outputs.prerelease }}" = "true" ]; then
-            ovsx publish "$VSIX_FILE" --pre-release
-          else
-            ovsx publish "$VSIX_FILE"
-          fi
-        env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
 
   create-release:
     needs: [validate, build, publish-vscode-marketplace]
