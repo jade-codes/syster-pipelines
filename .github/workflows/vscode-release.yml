@@ -14,8 +14,8 @@ on:
         type: string
         default: '20'
     secrets:
-      VSCE_PAT:
-        description: 'Personal Access Token for VS Code Marketplace'
+      OVSX_PAT:
+        description: 'Access token for Open VSX Registry'
         required: true
 
 permissions:
@@ -93,37 +93,35 @@ jobs:
           path: '${{ inputs.working-directory }}/*.vsix'
           retention-days: 30
 
-  publish-vscode-marketplace:
+  publish-open-vsx:
     needs: [validate, build]
     runs-on: ubuntu-latest
     environment: release
     steps:
-      - uses: actions/checkout@v4
+      - name: Download VSIX
+        uses: actions/download-artifact@v4
+        with:
+          name: vsix-package
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'npm'
-          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
 
-      - name: Install dependencies
-        working-directory: ${{ inputs.working-directory }}
-        run: npm ci
-
-      - name: Publish to VS Code Marketplace
-        working-directory: ${{ inputs.working-directory }}
+      - name: Publish to Open VSX
         run: |
+          npm install -g ovsx
+          VSIX_FILE=$(ls *.vsix | head -1)
           if [ "${{ needs.validate.outputs.prerelease }}" = "true" ]; then
-            npx @vscode/vsce publish --no-dependencies --pre-release
+            ovsx publish "$VSIX_FILE" --pre-release
           else
-            npx @vscode/vsce publish --no-dependencies
+            ovsx publish "$VSIX_FILE"
           fi
         env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
 
   create-release:
-    needs: [validate, build, publish-vscode-marketplace]
+    needs: [validate, build, publish-open-vsx]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
