@@ -13,10 +13,17 @@ on:
         description: 'Node.js version to use'
         type: string
         default: '20'
+      dry-run:
+        description: 'If true, build and package but skip publishing'
+        type: boolean
+        default: false
     secrets:
+      VSCE_PAT:
+        description: 'Personal Access Token for VS Code Marketplace'
+        required: false
       OVSX_PAT:
         description: 'Access token for Open VSX Registry'
-        required: true
+        required: false
 
 permissions:
   contents: write
@@ -93,20 +100,42 @@ jobs:
           path: '${{ inputs.working-directory }}/*.vsix'
           retention-days: 30
 
-  publish-open-vsx:
+  publish-vscode-marketplace:
     needs: [validate, build]
     runs-on: ubuntu-latest
     environment: release
+    if: ${{ inputs.dry-run != true }}
     steps:
-      - name: Validate OVSX_PAT is set
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: npm ci
+
+      - name: Publish to VS Code Marketplace
+        working-directory: ${{ inputs.working-directory }}
         run: |
-          if [ -z "$OVSX_PAT" ]; then
-            echo "::error::OVSX_PAT secret is not set. Cannot publish to Open VSX."
-            exit 1
+          if [ "${{ needs.validate.outputs.prerelease }}" = "true" ]; then
+            npx @vscode/vsce publish --no-dependencies --pre-release
+          else
+            npx @vscode/vsce publish --no-dependencies
           fi
         env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
+  publish-open-vsx:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    if: ${{ inputs.dry-run != true }}
+    environment: release
+    steps:
       - name: Download VSIX
         uses: actions/download-artifact@v4
         with:
@@ -130,7 +159,8 @@ jobs:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
 
   create-release:
-    needs: [validate, build, publish-open-vsx]
+    needs: [validate, build]
+    if: ${{ inputs.dry-run != true }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
