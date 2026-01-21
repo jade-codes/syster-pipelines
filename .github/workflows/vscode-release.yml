@@ -18,9 +18,6 @@ on:
         type: boolean
         default: false
     secrets:
-      VSCE_PAT:
-        description: 'Personal Access Token for VS Code Marketplace'
-        required: false
       OVSX_PAT:
         description: 'Access token for Open VSX Registry'
         required: false
@@ -99,36 +96,6 @@ jobs:
           name: vsix-package
           path: '${{ inputs.working-directory }}/*.vsix'
           retention-days: 30
-
-  publish-vscode-marketplace:
-    needs: [validate, build]
-    runs-on: ubuntu-latest
-    environment: release
-    if: ${{ inputs.dry-run != true }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: 'npm'
-          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
-
-      - name: Install dependencies
-        working-directory: ${{ inputs.working-directory }}
-        run: npm ci
-
-      - name: Publish to VS Code Marketplace
-        working-directory: ${{ inputs.working-directory }}
-        run: |
-          if [ "${{ needs.validate.outputs.prerelease }}" = "true" ]; then
-            npx @vscode/vsce publish --no-dependencies --pre-release
-          else
-            npx @vscode/vsce publish --no-dependencies
-          fi
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
   publish-open-vsx:
     needs: [validate, build]
