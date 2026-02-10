@@ -98,6 +98,35 @@ jobs:
       OVSX_PAT: ${{ secrets.OVSX_PAT }}  # Optional
 ```
 
+**For Python packages:**
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    uses: jade-codes/syster-pipelines/.github/workflows/python-ci.yml@main
+```
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+
+jobs:
+  release:
+    uses: jade-codes/syster-pipelines/.github/workflows/python-release.yml@main
+    secrets:
+      PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+```
+
 ### 2. Configure Secrets
 
 See [Required Secrets](#required-secrets) section below.
@@ -114,6 +143,8 @@ See [Required Secrets](#required-secrets) section below.
 | `npm-release.yml` | npm release: registry + GitHub | syster-diagram-core, syster-diagram-ui |
 | `vscode-ci.yml` | VS Code CI: compile, test, package | syster-viewer, syster-modeller |
 | `vscode-release.yml` | VS Code release: Marketplace + Open VSX | syster-viewer, syster-modeller |
+| `python-ci.yml` | Python CI: lint, type check, test | systree, syster-tree |
+| `python-release.yml` | Python release: PyPI + GitHub | systree, syster-tree |
 
 ---
 
@@ -139,6 +170,12 @@ Each repository needs specific secrets configured in **Settings → Secrets and 
 |--------|-------------|------------|
 | `VSCE_PAT` | Personal Access Token for VS Code Marketplace | [Azure DevOps PAT](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#get-a-personal-access-token) |
 | `OVSX_PAT` | Access token for Open VSX Registry | [open-vsx.org/user-settings/tokens](https://open-vsx.org/user-settings/tokens) |
+
+### For Python Packages (PyPI)
+
+| Secret | Description | How to Get |
+|--------|-------------|------------|
+| `PYPI_API_TOKEN` | API token for publishing to PyPI | [pypi.org/manage/account/token](https://pypi.org/manage/account/token/) - Create project-scoped token |
 
 ---
 
@@ -195,6 +232,22 @@ with:
 secrets:
   VSCE_PAT: ${{ secrets.VSCE_PAT }}
   OVSX_PAT: ${{ secrets.OVSX_PAT }}  # Optional
+```
+
+#### `python-ci.yml`
+```yaml
+with:
+  working-directory: '.'                      # Working directory
+  python-versions: '["3.10", "3.11", "3.12"]' # Python versions to test
+  install-extras: 'dev'                       # pip extras to install
+```
+
+#### `python-release.yml`
+```yaml
+with:
+  working-directory: '.'                    # Working directory
+secrets:
+  PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
 ```
 
 ### Example: syster-lsp (Dual Publishing)

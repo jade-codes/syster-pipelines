@@ -1,0 +1,21 @@
+# Example caller workflow for Python CI
+# This file shows how to use the reusable Python CI workflow
+#
+# Place this file at: .github/workflows/ci.yml
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  python-ci:
+    uses: jade-codes/syster-pipelines/.github/workflows/python-ci.yml@main
+    # Optional inputs (shown with defaults):
+    # with:
+    #   working-directory: '.'
+    #   python-versions: '["3.10", "3.11", "3.12"]'
+    #   install-extras: 'dev'

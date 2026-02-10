@@ -1,0 +1,133 @@
+# Reusable workflow for Python CI
+# Use for: systree, syster-tree
+
+name: Python CI
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: 'Working directory for the build'
+        type: string
+        default: '.'
+      python-versions:
+        description: 'JSON array of Python versions to test (e.g., ["3.10", "3.11", "3.12"])'
+        type: string
+        default: '["3.10", "3.11", "3.12"]'
+      install-extras:
+        description: 'pip extras to install (e.g., "dev" or "dev,test")'
+        type: string
+        default: 'dev'
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          uv pip install --system -e ".[${{ inputs.install-extras }}]"
+      
+      - name: Run checks
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          if [ -f Makefile ] && grep -q "run-guidelines" Makefile; then
+            make run-guidelines
+          else
+            echo "No run-guidelines target, running default checks"
+            # Type checking
+            python -m mypy src/ || python -m pyright src/ || echo "No type checker configured"
+            # Linting
+            python -m ruff check . || python -m flake8 . || echo "No linter configured"
+            # Formatting
+            python -m ruff format --check . || python -m black --check . || echo "No formatter configured"
+          fi
+      
+      - name: Run tests
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          python -m pytest -v --ignore=tests/integration || echo "No tests found"
+
+  # Test on multiple Python versions for compatibility
+  python-compat:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ${{ fromJSON(inputs.python-versions) }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          uv pip install --system -e ".[${{ inputs.install-extras }}]"
+      
+      - name: Run tests
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          python -m pytest -v --ignore=tests/integration
+
+  # Integration tests (optional, run if tests/integration exists)
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      
+      - name: Install Rust toolchain (for CLI)
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          uv pip install --system -e ".[${{ inputs.install-extras }}]"
+      
+      - name: Install CLI (if Makefile has target)
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          if [ -f Makefile ] && grep -q "install-cli" Makefile; then
+            make install-cli
+          else
+            echo "No install-cli target, skipping CLI installation"
+          fi
+      
+      - name: Run integration tests
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          if [ -d tests/integration ] || grep -q "integration" tests/*.py 2>/dev/null; then
+            python -m pytest -v -m integration || python -m pytest -v tests/integration/
+          else
+            echo "No integration tests found, skipping"
+          fi

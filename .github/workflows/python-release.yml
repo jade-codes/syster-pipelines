@@ -1,0 +1,148 @@
+# Reusable workflow for Python releases
+# Publishes to PyPI on version tags
+
+name: Python Release
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: 'Working directory for the build'
+        type: string
+        default: '.'
+    secrets:
+      PYPI_API_TOKEN:
+        description: 'Token for publishing to PyPI'
+        required: true
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Releasing version $VERSION"
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      
+      - name: Install build tools
+        run: |
+          uv pip install --system build twine
+      
+      - name: Build package
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          python -m build
+      
+      - name: Verify package version matches tag
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          # Get version from package metadata
+          PKG_VERSION=$(python -c "
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              data = tomllib.load(f)
+              print(data['project']['version'])
+          " 2>/dev/null || python -c "
+          import toml
+          data = toml.load('pyproject.toml')
+          print(data['project']['version'])
+          ")
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "❌ Package version ($PKG_VERSION) does not match tag ($TAG_VERSION)"
+            exit 1
+          fi
+          echo "✓ Version $PKG_VERSION matches tag"
+      
+      - name: Check package with twine
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          python -m twine check dist/*
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: ${{ inputs.working-directory }}/dist/
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # For PyPI trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install twine
+        run: pip install twine
+      
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          python -m twine upload dist/*
+
+  create-release:
+    name: Create GitHub Release
+    needs: [validate, publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: v${{ needs.validate.outputs.version }}
+          body: |
+            ## Python Package v${{ needs.validate.outputs.version }}
+            
+            ### Installation
+            
+            ```bash
+            pip install systree==${{ needs.validate.outputs.version }}
+            ```
+            
+            ### What's Changed
+            
+            See [CHANGELOG.md](CHANGELOG.md) for details.
+          files: |
+            dist/*
+          draft: false
+          prerelease: ${{ contains(needs.validate.outputs.version, '-') }}
