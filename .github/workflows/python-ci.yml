@@ -126,8 +126,10 @@ jobs:
       - name: Run integration tests
         working-directory: ${{ inputs.working-directory }}
         run: |
-          if [ -d tests/integration ] || grep -q "integration" tests/*.py 2>/dev/null; then
-            python -m pytest -v -m integration || python -m pytest -v tests/integration/
+          if [ -d tests/integration ]; then
+            python -m pytest -v tests/integration/
+          elif grep -q "integration" tests/*.py 2>/dev/null; then
+            python -m pytest -v -m integration
           else
             echo "No integration tests found, skipping"
           fi
